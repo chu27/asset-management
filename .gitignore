@@ -1,0 +1,17 @@
+backend/.venv/
+backend/sbi.db
+backend/tests/test_sbi.db
+backend/.pycache/
+backend/__pycache__/
+backend/app/__pycache__/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+prototype/
+.env
+.env.*
+*.log
+.DS_Store
+*.pyc
