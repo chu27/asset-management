@@ -1,0 +1,36 @@
+import { FormEvent, useEffect, useState } from "react";
+import { api } from "../api";
+import Modal from "../components/Modal";
+import type { EventItem, Portfolio, Reminder } from "../types";
+
+type Tab = "alerts" | "events" | "risk";
+
+export default function RemindersView() {
+  const [tab, setTab] = useState<Tab>("alerts");
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [risk, setRisk] = useState({ default_position_limit: "", loss_limit: "" });
+  const [showEvent, setShowEvent] = useState(false);
+  const [message, setMessage] = useState("");
+  const [handled, setHandled] = useState<string[]>([]);
+  const load = async () => { const [alertData, eventData, portfolioData, riskData] = await Promise.all([api<Reminder[]>("/api/reminders"), api<EventItem[]>("/api/events"), api<Portfolio>("/api/portfolio"), api<{ default_position_limit: number | null; loss_limit: number | null }>("/api/risk")]); setReminders(alertData); setEvents(eventData); setPortfolio(portfolioData); setRisk({ default_position_limit: riskData.default_position_limit?.toString() ?? "", loss_limit: riskData.loss_limit?.toString() ?? "" }); };
+  useEffect(() => { load().catch((error) => setMessage(error.message)); }, []);
+
+  async function addEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const form = new FormData(event.currentTarget);
+    try { await api("/api/events", { method: "POST", body: JSON.stringify({ stock_id: form.get("stock") ? Number(form.get("stock")) : null, event_type: form.get("type"), title: form.get("title"), event_date: form.get("date"), remind_days: Number(form.get("days")), source: "manual", confirmed: form.get("confirmed") === "yes", note: form.get("note") }) }); setShowEvent(false); setMessage("事件已添加"); await load(); } catch (error) { setMessage((error as Error).message); }
+  }
+  async function saveRisk(event: FormEvent) { event.preventDefault(); try { await api("/api/risk", { method: "PUT", body: JSON.stringify({ default_position_limit: risk.default_position_limit ? Number(risk.default_position_limit) : null, loss_limit: risk.loss_limit ? Number(risk.loss_limit) : null }) }); setMessage("统一风险规则已保存"); await load(); } catch (error) { setMessage((error as Error).message); } }
+  const active = reminders.filter((item) => item.status === "active" && !handled.includes(item.id));
+  const upcoming = reminders.filter((item) => item.status === "upcoming" && !handled.includes(item.id));
+  return <>
+    <section className="page-intro"><div><span>NOTIFICATION CENTER</span><h1>🔔 通知中心</h1><p>价格、仓位、亏损和重要日期集中显示，不会自动交易。</p></div><button className="btn primary" onClick={() => setShowEvent(true)}>＋ 添加事件</button></section>
+    {message && <div className="notice">{message}</div>}
+    <nav className="subtabs"><button className={tab === "alerts" ? "active" : ""} onClick={() => setTab("alerts")}>提醒列表 {active.length + upcoming.length}</button><button className={tab === "events" ? "active" : ""} onClick={() => setTab("events")}>事件日历</button><button className={tab === "risk" ? "active" : ""} onClick={() => setTab("risk")}>统一风险规则</button></nav>
+    {tab === "alerts" && <section className="card reminder-list"><div className="card-heading"><div><h2>需要处理</h2><p>规则达到条件时自动出现</p></div><strong>{active.length}</strong></div>{active.length ? active.map((item) => <article className="reminder-item" key={item.id}><span className="reminder-icon">{item.kind.includes("价格") || item.kind.includes("亏损") ? "🔴" : "🟠"}</span><div><small>{item.kind}</small><h3>{item.title}</h3><strong>{item.headline}</strong><p>{item.detail}</p></div><button className="btn secondary" onClick={() => setHandled([...handled, item.id])}>知道了</button></article>) : <p className="empty">目前没有需要处理的提醒</p>}<div className="card-heading upcoming-heading"><div><h2>即将发生</h2><p>财报、分红除权和其他日期</p></div><strong>{upcoming.length}</strong></div>{upcoming.map((item) => <article className="reminder-item" key={item.id}><span className="reminder-icon">🟣</span><div><small>{item.kind}</small><h3>{item.title}</h3><strong>{item.headline}</strong><p>{item.detail}</p></div><button className="btn secondary" onClick={() => setHandled([...handled, item.id])}>知道了</button></article>)}</section>}
+    {tab === "events" && <section className="card"><div className="card-heading"><div><h2>事件日历</h2><p>自动同步和手动添加的数据会标明来源</p></div><div className="intro-actions"><button className="btn secondary" onClick={async () => { setMessage("正在通过 yfinance 同步公司事件……"); try { const result = await api<{ created: number; failed: string[] }>("/api/events/refresh", { method: "POST" }); setMessage(`新增 ${result.created} 条自动事件，${result.failed.length} 只股票未取得数据`); await load(); } catch (error) { setMessage((error as Error).message); } }}>同步公司事件</button><button className="btn primary" onClick={() => setShowEvent(true)}>＋ 添加事件</button></div></div><div className="event-grid">{events.map((item) => <article className="event-card" key={item.id}><div><span className={`source ${item.source === "auto" ? "auto" : "manual"}`}>{item.source === "auto" ? "自动同步" : "手动添加"}</span><small>{item.event_date}</small></div><h3>{item.title}</h3><p>{item.stock || "未关联股票"} · 提前{item.remind_days}天提醒</p><button className="text-danger" onClick={async () => { if (!confirm("确认删除这个事件？")) return; await api(`/api/events/${item.id}`, { method: "DELETE" }); await load(); }}>删除</button></article>)}</div></section>}
+    {tab === "risk" && <section className="card risk-card"><div className="card-heading"><div><h2>统一风险规则</h2><p>留空表示不启用；单只股票的单独设置优先</p></div></div><form className="risk-form" onSubmit={saveRisk}><label>默认单只股票仓位上限（%）<input type="number" min="0" max="100" step="any" value={risk.default_position_limit} onChange={(e) => setRisk({ ...risk, default_position_limit: e.target.value })} placeholder="例如 25" /><small>当前仓位＝该股票折合日元市值÷全部股票折合日元市值</small></label><label>统一亏损幅度提醒（%）<input type="number" min="0" max="100" step="any" value={risk.loss_limit} onChange={(e) => setRisk({ ...risk, loss_limit: e.target.value })} placeholder="例如 20" /><small>达到 -20% 时提醒；不会自动卖出</small></label><button className="btn primary">保存风险规则</button></form></section>}
+    {showEvent && <Modal title="添加提醒事件" subtitle="财报、分红除权、期权日或自定义日期" onClose={() => setShowEvent(false)}><form className="form-grid" onSubmit={addEvent}><label>事件类型<select name="type"><option>财报公布</option><option>分红日期</option><option>除权日期</option><option>期权到期</option><option>市场重要期权日</option><option>自定义事件</option></select></label><label>关联股票<select name="stock"><option value="">不关联股票</option>{portfolio?.positions.map((item) => <option value={item.id} key={item.id}>{item.code} {item.name}</option>)}</select></label><label className="full">事件标题<input name="title" required /></label><label>日期<input name="date" type="date" required /></label><label>提前提醒天数<input name="days" type="number" min="0" defaultValue="3" /></label><label>日期状态<select name="confirmed"><option value="no">预计日期</option><option value="yes">已确认日期</option></select></label><label className="full">备注<textarea name="note" /></label><div className="form-actions full"><button type="button" className="btn secondary" onClick={() => setShowEvent(false)}>取消</button><button className="btn primary">保存事件</button></div></form></Modal>}
+  </>;
+}
