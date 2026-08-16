@@ -107,3 +107,16 @@ def test_market_preview_and_confirm(monkeypatch):
         assert confirmed.status_code == 200
         position = next(item for item in client.get("/api/portfolio").json()["positions"] if item["id"] == items[0]["stock_id"])
         assert position["current_price"] == 234.56
+
+
+def test_fund_asset_is_included_and_cannot_link_transactions():
+    with TestClient(app) as client:
+        created = client.post("/api/assets", json={"name": "测试基金", "asset_type": "fund", "currency": "CNY", "balance": 12345, "linked": True})
+        assert created.status_code == 201
+
+        summary = client.get("/api/assets").json()
+        fund = next(item for item in summary["rows"] if item["name"] == "测试基金")
+        assert fund["asset_type"] == "fund"
+        assert fund["linked"] is False
+        assert "institution" not in fund
+        assert summary["breakdown"]["CNY"]["fund"] == 12345

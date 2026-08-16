@@ -1,5 +1,6 @@
 export type Market = "japan" | "us" | "china";
 export type Currency = "JPY" | "USD" | "CNY";
+export type ManualAssetType = "cash" | "deposit" | "fund";
 
 export type Position = {
   id: number;
@@ -31,8 +32,7 @@ export type AssetRow = {
   id: number | string;
   name: string;
   secondary: string;
-  asset_type: "stock" | "cash" | "deposit";
-  institution: string;
+  asset_type: "stock" | ManualAssetType;
   currency: Currency;
   balance: number;
   source: "auto" | "manual";
@@ -41,7 +41,7 @@ export type AssetRow = {
 
 export type AssetSummary = {
   rows: AssetRow[];
-  breakdown: Record<Currency, { stock: number; cash: number; deposit: number }>;
+  breakdown: Record<Currency, { stock: number; cash: number; deposit: number; fund: number }>;
   currency_totals: Record<Currency, number>;
   converted_jpy: Record<Currency, number>;
   total_jpy: number;
