@@ -10,12 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import models, schemas, services
-from .database import Base, SessionLocal, engine, get_db
+from .database import Base, SessionLocal, engine, get_db, migrate_database
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
+    migrate_database()
     with SessionLocal() as db:
         services.seed_database(db)
     yield
@@ -330,10 +331,10 @@ def get_assets(db: Session = Depends(get_db)):
 
 @app.post("/api/assets", status_code=201)
 def create_asset(payload: schemas.ManualAssetCreate, db: Session = Depends(get_db)):
-    if payload.asset_type not in {"cash", "deposit"} or payload.currency not in {"JPY", "USD", "CNY"}:
+    if payload.asset_type not in {"cash", "deposit", "fund"} or payload.currency not in {"JPY", "USD", "CNY"}:
         raise HTTPException(400, "资产类型或币种不正确")
     item = models.ManualAsset(**payload.model_dump())
-    if item.asset_type == "deposit":
+    if item.asset_type != "cash":
         item.linked = False
     db.add(item)
     db.commit()
@@ -347,7 +348,7 @@ def update_asset(asset_id: int, payload: schemas.ManualAssetUpdate, db: Session 
         raise HTTPException(404, "资产不存在")
     for key, value in payload.model_dump().items():
         setattr(item, key, value)
-    if item.asset_type == "deposit":
+    if item.asset_type != "cash":
         item.linked = False
     db.commit()
     return {"message": "资产已更新"}

@@ -59,7 +59,6 @@ class ManualAsset(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     asset_type: Mapped[str] = mapped_column(String(20))
-    institution: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), index=True)
     balance: Mapped[float] = mapped_column(Float, default=0)
     linked: Mapped[bool] = mapped_column(default=False)

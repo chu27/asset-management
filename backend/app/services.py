@@ -103,14 +103,14 @@ def portfolio(db: Session, include_closed: bool = False) -> dict[str, Any]:
 
 def asset_summary(db: Session) -> dict[str, Any]:
     portfolio_data = portfolio(db)
-    grouped = {"JPY": {"stock": 0.0, "cash": 0.0, "deposit": 0.0}, "USD": {"stock": 0.0, "cash": 0.0, "deposit": 0.0}, "CNY": {"stock": 0.0, "cash": 0.0, "deposit": 0.0}}
+    grouped = {"JPY": {"stock": 0.0, "cash": 0.0, "deposit": 0.0, "fund": 0.0}, "USD": {"stock": 0.0, "cash": 0.0, "deposit": 0.0, "fund": 0.0}, "CNY": {"stock": 0.0, "cash": 0.0, "deposit": 0.0, "fund": 0.0}}
     rows = []
     for position in portfolio_data["positions"]:
         grouped[position["currency"]]["stock"] += position["market_value"]
-        rows.append({"id": f"stock-{position['id']}", "name": position["name"], "secondary": position["code"], "asset_type": "stock", "institution": {"japan": "日股", "us": "美股", "china": "科技"}[position["market"]], "currency": position["currency"], "balance": position["market_value"], "source": "auto", "linked": False})
+        rows.append({"id": f"stock-{position['id']}", "name": position["name"], "secondary": position["code"], "asset_type": "stock", "currency": position["currency"], "balance": position["market_value"], "source": "auto", "linked": False})
     for asset in db.scalars(select(models.ManualAsset).order_by(models.ManualAsset.currency, models.ManualAsset.id)).all():
         grouped[asset.currency][asset.asset_type] += asset.balance
-        rows.append({"id": asset.id, "name": asset.name, "secondary": asset.note or "", "asset_type": asset.asset_type, "institution": asset.institution or "—", "currency": asset.currency, "balance": asset.balance, "source": "manual", "linked": asset.linked})
+        rows.append({"id": asset.id, "name": asset.name, "secondary": asset.note or "", "asset_type": asset.asset_type, "currency": asset.currency, "balance": asset.balance, "source": "manual", "linked": asset.linked})
     totals = {currency: sum(values.values()) for currency, values in grouped.items()}
     rates = portfolio_data["rates"]
     converted = {"JPY": totals["JPY"], "USD": totals["USD"] * rates["usd_jpy"], "CNY": totals["CNY"] * rates["cny_jpy"]}
@@ -175,12 +175,12 @@ def seed_database(db: Session) -> None:
     ]
     db.add_all(transactions)
     assets = [
-        models.ManualAsset(name="SBI证券账户现金", asset_type="cash", institution="SBI证券", currency="JPY", balance=800000, linked=True),
-        models.ManualAsset(name="三菱UFJ定期存款", asset_type="deposit", institution="三菱UFJ银行", currency="JPY", balance=3000000),
-        models.ManualAsset(name="美元现金", asset_type="cash", institution="SBI证券", currency="USD", balance=5000, linked=True),
-        models.ManualAsset(name="美元定期存款", asset_type="deposit", institution="银行账户", currency="USD", balance=10000),
-        models.ManualAsset(name="人民币现金", asset_type="cash", institution="投资账户", currency="CNY", balance=100000, linked=True),
-        models.ManualAsset(name="人民币定期存款", asset_type="deposit", institution="中国工商银行", currency="CNY", balance=200000),
+        models.ManualAsset(name="SBI证券账户现金", asset_type="cash", currency="JPY", balance=800000, linked=True),
+        models.ManualAsset(name="三菱UFJ定期存款", asset_type="deposit", currency="JPY", balance=3000000),
+        models.ManualAsset(name="美元现金", asset_type="cash", currency="USD", balance=5000, linked=True),
+        models.ManualAsset(name="美元定期存款", asset_type="deposit", currency="USD", balance=10000),
+        models.ManualAsset(name="人民币现金", asset_type="cash", currency="CNY", balance=100000, linked=True),
+        models.ManualAsset(name="人民币定期存款", asset_type="deposit", currency="CNY", balance=200000),
     ]
     db.add_all(assets)
     tags = {name: models.Tag(name=name) for name in ["AI", "Mag7", "汽车", "日本制造", "互联网", "半导体"]}

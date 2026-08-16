@@ -58,7 +58,6 @@ class MarketPricesConfirm(BaseModel):
 class ManualAssetCreate(BaseModel):
     name: str
     asset_type: str
-    institution: Optional[str] = None
     currency: str
     balance: float = Field(default=0, ge=0)
     linked: bool = False
